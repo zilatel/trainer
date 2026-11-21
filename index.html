@@ -35,13 +35,15 @@ input{width:80px}
 .up li.done{opacity:.45}
 .up li.now{background:var(--accent);color:#fff;border-color:transparent;font-weight:600;box-shadow:0 0 0 2px var(--accent),0 0 10px var(--accent)}
 .up li.now b,.up li.now .mute{color:#fff}
-.upwrap{max-height:70vh;overflow-y:auto;position:relative;padding:8px 4px 4px}
-.grid{display:grid;grid-template-columns:300px 1fr;gap:12px;align-items:start}
+.upwrap{position:absolute;left:8px;right:8px;top:44px;bottom:8px;overflow-y:auto;padding:8px 4px 4px}
+.grid{display:grid;grid-template-columns:300px 1fr;gap:12px;align-items:stretch;margin-bottom:12px}
+.grid>div>.card:last-child,.grid>.upbox{margin-bottom:0}
 .grid>div{min-width:0}
-.upbox{position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px)}
-@media (max-width:760px){.grid{grid-template-columns:1fr}.upbox{position:static;order:2}}
+.upbox{position:relative;min-height:260px}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.upbox{height:55vh;order:2}}
 .mute{color:var(--mute)}
 .tleft{font-size:40px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.sm{padding:2px 8px;font-size:12px;margin-left:8px;color:var(--mute)}
 .under{color:#e03131}.over{color:#e8a008}.on{color:var(--ok)}
 label{font-size:14px;color:var(--mute)}
 </style>
@@ -61,7 +63,7 @@ label{font-size:14px;color:var(--mute)}
   <button id="add">Add .zwo files</button><input type="file" id="file" accept=".zwo,.xml" multiple hidden>
   <button class="p" id="go">Start</button>
   <button id="skip">Skip block</button>
-  <button id="reset">Reset</button>
+  <button id="reset">Stop</button>
   <button id="save" disabled>Save ride (.tcx)</button>
   <span class="mute" id="total"></span>
   <div class="mute" id="desc" style="font-size:13px;width:100%"></div>
@@ -71,6 +73,7 @@ label{font-size:14px;color:var(--mute)}
   <div class="big">
     <div class="target"><div class="v" id="tw">&#8211;</div><div class="l">Target watts</div></div>
     <div><div class="v" id="pw">&#8211;</div><div class="l">Power (W)</div></div>
+    <div><div class="v" id="pct">&#8211;</div><div class="l">% of FTP</div></div>
     <div><div class="v" id="cad">&#8211;</div><div class="l">Cadence</div></div>
     <div><div class="v" id="avg">&#8211;</div><div class="l">Avg power (W)</div></div>
   </div>
@@ -86,7 +89,7 @@ label{font-size:14px;color:var(--mute)}
   <canvas id="ivc" style="width:100%;height:120px;display:block;margin-top:8px"></canvas>
 </div>
 <div class="card">
-  <strong>Workout profile</strong>
+  <div class="row" style="justify-content:space-between;align-items:flex-start"><strong>Workout profile</strong><div style="text-align:right"><button class="sm" id="tgl" style="margin:0 0 6px">Hide time left</button><div id="ttbox"><div class="tleft" id="tleft">&#8211;</div><div class="mute" style="font-size:13px;text-transform:uppercase;letter-spacing:.05em">Time left</div></div></div></div>
   <div class="tl" id="tl"></div>
 </div>
 </div>
@@ -187,7 +190,7 @@ function drawIv(){
   if(!w)return;
   cv.width=w*dpr;cv.height=h*dpr;
   const g=cv.getContext("2d");g.scale(dpr,dpr);
-  $("ivt").textContent=b?`Block ${S.i+1} of ${S.blocks.length} \u00b7 ${b[0]} \u00b7 ${b[2]}% FTP`:"";
+  $("ivt").textContent=b?`Block ${S.i+1} of ${S.blocks.length} \u00b7 ${b[2]}% FTP`:"";
   if(!b)return;
   const cs=getComputedStyle(document.documentElement),col=n=>cs.getPropertyValue(n).trim();
   const tw=watts(b),pts=S.rec.filter(p=>p.b==S.i),max=Math.max(tw*1.4,50,...pts.map(p=>p.w));
@@ -218,11 +221,12 @@ function upd(){
 function render(){
   const b=S.blocks[S.i];
   $("avg").textContent=S.rec.length?Math.round(S.sum/S.rec.length):"\u2013";
+  $("tleft").textContent=fmt(S.blocks.reduce((a,b,n)=>a+(n>S.i?b[1]:n==S.i?b[1]-S.el:0),0));
   [...$("tl").children].forEach((d,n)=>{d.className=n<S.i?"done":n==S.i?"cur":"";d.firstChild.style.width=n==S.i?(S.el/b[1]*100)+"%":"0";d.lastChild.style.left=n==S.i?(S.el/b[1]*100)+"%":"0"});
   if(!b){drawIv();$("ivt").textContent="Workout complete \ud83c\udf89";$("tw").textContent="\u2013";$("left").textContent="\u2013";upd();return}
   
   $("tw").textContent=watts(b);$("left").textContent=fmt(b[1]-S.el);
-  $("pw").textContent=S.pw??"\u2013";$("cad").textContent=S.cad!=null?Math.round(S.cad):"\u2013";
+  $("pw").textContent=S.pw??"\u2013";$("pct").textContent=S.pw!=null?Math.round(S.pw/ftp()*100)+"%":"\u2013";$("cad").textContent=S.cad!=null?Math.round(S.cad):"\u2013";
   $("pw").className="v "+(S.pw==null?"":S.pw<watts(b)*.93?"under":S.pw>watts(b)*1.07?"over":"on");
   drawIv();upd();
 }
@@ -313,6 +317,7 @@ $("save").onclick=async()=>{
     else{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([tcx],{type:"application/xml"}));a.download=base+".tcx";a.click()}
   }catch(e){if(!e||e.code!=="declined")$("total").textContent="Could not save: "+((e&&e.message)||e)}
 };
+$("tgl").onclick=()=>{const h=$("ttbox").style.display=="none";$("ttbox").style.display=h?"":"none";$("tgl").textContent=h?"Hide time left":"Show time left"};
 S.timer=setInterval(tick,1000);
 load();
 </script>
