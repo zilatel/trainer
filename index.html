@@ -11,7 +11,7 @@
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:860px;margin:0 auto;padding:16px}
+main{max-width:1100px;margin:0 auto;padding:16px}
 h1{font-size:20px;margin:0 0 12px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -27,12 +27,21 @@ input{width:80px}
 .tl div{position:relative;background:var(--bar);border-radius:3px 3px 0 0;overflow:hidden;min-width:2px}
 .tl div i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);opacity:.9}
 .tl div.done{background:var(--accent);opacity:.45}
-.tl div.cur{outline:2px solid var(--text);outline-offset:-2px}
+.tl div b{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:#3b82f6;display:none}
+.tl div.cur b{display:block}
 .up{list-style:none;margin:8px 0 0;padding:0}
-.up li{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
-.up li:first-child{border-top:0}
-.up b{color:var(--accent)}
+.up li{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;font-size:14px}
+.up li b{color:var(--accent)}
+.up li.done{opacity:.45}
+.up li.now{background:var(--accent);color:#fff;border-color:transparent;font-weight:600;box-shadow:0 0 0 2px var(--accent),0 0 10px var(--accent)}
+.up li.now b,.up li.now .mute{color:#fff}
+.upwrap{max-height:70vh;overflow-y:auto;position:relative;padding:8px 4px 4px}
+.grid{display:grid;grid-template-columns:300px 1fr;gap:12px;align-items:start}
+.grid>div{min-width:0}
+.upbox{position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px)}
+@media (max-width:760px){.grid{grid-template-columns:1fr}.upbox{position:static;order:2}}
 .mute{color:var(--mute)}
+.tleft{font-size:40px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 .under{color:#e03131}.over{color:#e8a008}.on{color:var(--ok)}
 label{font-size:14px;color:var(--mute)}
 </style>
@@ -58,25 +67,29 @@ label{font-size:14px;color:var(--mute)}
   <div class="mute" id="desc" style="font-size:13px;width:100%"></div>
 </div>
 <div class="card">
-  <div class="mute" id="blockname">Ready</div>
+  <strong id="blockname">Power and cadence</strong>
   <div class="big">
     <div class="target"><div class="v" id="tw">&#8211;</div><div class="l">Target watts</div></div>
     <div><div class="v" id="pw">&#8211;</div><div class="l">Power (W)</div></div>
     <div><div class="v" id="cad">&#8211;</div><div class="l">Cadence</div></div>
-    <div><div class="v" id="left">&#8211;</div><div class="l">Block time left</div></div>
+    <div><div class="v" id="avg">&#8211;</div><div class="l">Avg power (W)</div></div>
   </div>
 </div>
+<div class="grid">
+<div class="card upbox">
+  <strong>Intervals</strong>
+  <div class="upwrap" id="upwrap"><ul class="up" id="up"></ul></div>
+</div>
+<div>
 <div class="card">
-  <div class="row" style="justify-content:space-between"><strong>Current interval</strong><span class="mute" id="ivt"></span></div>
+  <div class="row" style="justify-content:space-between;align-items:flex-end"><div><strong>Current interval</strong><div class="mute" id="ivt" style="font-size:14px"></div></div><div style="text-align:right"><div class="tleft" id="left">&#8211;</div><div class="mute" style="font-size:13px;text-transform:uppercase;letter-spacing:.05em">Time left</div></div></div>
   <canvas id="ivc" style="width:100%;height:120px;display:block;margin-top:8px"></canvas>
 </div>
 <div class="card">
   <strong>Workout profile</strong>
   <div class="tl" id="tl"></div>
 </div>
-<div class="card">
-  <strong>Coming up</strong>
-  <ul class="up" id="up"></ul>
+</div>
 </div>
 <p class="mute" style="font-size:13px">Web Bluetooth needs Chrome, Edge or Opera on desktop or Android (not Safari/iOS) and a trainer that supports FTMS. Without a trainer, use Demo mode.</p>
 </main>
@@ -161,11 +174,12 @@ $("file").onchange=async e=>{
   if(bad.length)$("total").textContent="Could not read: "+bad.join(", ");
 };
 function load(){
-  S.rec=[];$("save").disabled=true;$("save").className="";$("desc").textContent=DESC[$("wo").value]||"";S.blocks=WO[$("wo").value];S.i=0;S.el=0;S.run=false;$("go").textContent="Start";
+  S.rec=[];S.sum=0;$("save").disabled=true;$("save").className="";$("desc").textContent=DESC[$("wo").value]||"";S.blocks=WO[$("wo").value];S.i=0;S.el=0;S.run=false;$("go").textContent="Start";
   const tot=S.blocks.reduce((a,b)=>a+b[1],0);$("total").textContent="Total "+fmt(tot);
   const max=Math.max(...S.blocks.map(b=>b[2]));
   $("tl").innerHTML="";
-  S.blocks.forEach(b=>{const d=document.createElement("div");d.style.flex=b[1];d.style.height=(b[2]/max*100)+"%";d.title=b[0]+" \u00b7 "+watts(b)+" W";d.innerHTML="<i></i>";$("tl").append(d)});
+  $("up").innerHTML=S.blocks.map((b,n)=>`<li><span>Interval ${n+1}</span><span><b>${watts(b)} W</b></span></li>`).join("");S.lastI=-1;
+  S.blocks.forEach(b=>{const d=document.createElement("div");d.style.flex=b[1];d.style.height=(b[2]/max*100)+"%";d.title=b[0]+" \u00b7 "+watts(b)+" W";d.innerHTML="<i></i><b></b>";$("tl").append(d)});
   render();
 }
 function drawIv(){
@@ -173,7 +187,7 @@ function drawIv(){
   if(!w)return;
   cv.width=w*dpr;cv.height=h*dpr;
   const g=cv.getContext("2d");g.scale(dpr,dpr);
-  $("ivt").textContent=b?`${b[0]} \u00b7 ${fmt(S.el)} / ${fmt(b[1])}`:"";
+  $("ivt").textContent=b?`Block ${S.i+1} of ${S.blocks.length} \u00b7 ${b[0]} \u00b7 ${b[2]}% FTP`:"";
   if(!b)return;
   const cs=getComputedStyle(document.documentElement),col=n=>cs.getPropertyValue(n).trim();
   const tw=watts(b),pts=S.rec.filter(p=>p.b==S.i),max=Math.max(tw*1.4,50,...pts.map(p=>p.w));
@@ -188,23 +202,36 @@ function drawIv(){
   g.font="600 13px system-ui,sans-serif";g.fillText(tw+" W",8,Math.max(14,Y(tw)-6));
 }
 addEventListener("resize",drawIv);
+function upd(){
+  const L=$("up").children;
+  for(let n=0;n<L.length;n++){
+    const b=S.blocks[n],li=L[n];
+    li.className=n<S.i?"done":n==S.i?"now":"";
+    
+    
+  }
+  if(S.lastI!==S.i){
+    S.lastI=S.i;const w=$("upwrap"),c=L[Math.min(S.i,L.length-1)];
+    if(c)w.scrollTo({top:c.offsetTop-w.clientHeight/2+c.clientHeight/2,behavior:"smooth"});
+  }
+}
 function render(){
   const b=S.blocks[S.i];
-  [...$("tl").children].forEach((d,n)=>{d.className=n<S.i?"done":n==S.i?"cur":"";d.firstChild.style.width=n==S.i?(S.el/b[1]*100)+"%":"0"});
-  if(!b){$("blockname").textContent="Workout complete \ud83c\udf89";drawIv();$("tw").textContent="\u2013";$("left").textContent="\u2013";$("up").innerHTML="";return}
-  $("blockname").textContent=`Block ${S.i+1} of ${S.blocks.length} \u00b7 ${b[0]} \u00b7 ${b[2]}% FTP`;
+  $("avg").textContent=S.rec.length?Math.round(S.sum/S.rec.length):"\u2013";
+  [...$("tl").children].forEach((d,n)=>{d.className=n<S.i?"done":n==S.i?"cur":"";d.firstChild.style.width=n==S.i?(S.el/b[1]*100)+"%":"0";d.lastChild.style.left=n==S.i?(S.el/b[1]*100)+"%":"0"});
+  if(!b){drawIv();$("ivt").textContent="Workout complete \ud83c\udf89";$("tw").textContent="\u2013";$("left").textContent="\u2013";upd();return}
+  
   $("tw").textContent=watts(b);$("left").textContent=fmt(b[1]-S.el);
   $("pw").textContent=S.pw??"\u2013";$("cad").textContent=S.cad!=null?Math.round(S.cad):"\u2013";
   $("pw").className="v "+(S.pw==null?"":S.pw<watts(b)*.93?"under":S.pw>watts(b)*1.07?"over":"on");
-  drawIv();let t=b[1]-S.el;
-  $("up").innerHTML=S.blocks.slice(S.i+1,S.i+6).map(n=>{const r=`<li><span>${n[0]} <span class="mute">\u00b7 ${fmt(n[1])}</span></span><span><b>${watts(n)} W</b> <span class="mute">in ${fmt(t)}</span></span></li>`;t+=n[1];return r}).join("")||'<li class="mute">Last block</li>';
+  drawIv();upd();
 }
 function send(bytes){if(!S.ctrl)return;S.queue=S.queue.then(()=>S.ctrl.writeValueWithResponse(new Uint8Array(bytes))).catch(()=>{})}
 function setTarget(){const b=S.blocks[S.i];if(b&&$("erg").checked){const w=watts(b);send([0x05,w&255,w>>8])}}
 function tick(){
   if(!S.run)return;const b=S.blocks[S.i];if(!b)return;
   if(S.sim){S.pw=Math.max(0,Math.round(watts(b)+(Math.random()-.5)*20));S.cad=88+Math.random()*6}
-  if(S.pw!=null){S.rec.push({t:Date.now(),w:S.pw,c:S.cad,b:S.i,e:S.el});$("save").disabled=false}
+  if(S.pw!=null){S.sum+=S.pw;S.rec.push({t:Date.now(),w:S.pw,c:S.cad,b:S.i,e:S.el});$("save").disabled=false}
   S.el++;
   if(S.el>=b[1]){S.i++;S.el=0;if(!S.blocks[S.i]){S.run=false;$("go").textContent="Start";$("save").className="p";$("total").textContent="Workout complete \u2013 save your ride"}else setTarget()}
   render();
