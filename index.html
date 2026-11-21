@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Indoor Trainer</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f5f6f8;--card:#fff;--text:#14181f;--mute:#6b7280;--accent:#e8590c;--ok:#2f9e44;--bar:#cfd5de;--line:#e3e6eb}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1318;--card:#181e26;--text:#eef1f5;--mute:#8b95a5;--accent:#ff8a3d;--ok:#51cf66;--bar:#2c3541;--line:#2a323d}}
+:root[data-theme="dark"]{--bg:#0f1318;--card:#181e26;--text:#eef1f5;--mute:#8b95a5;--accent:#ff8a3d;--ok:#51cf66;--bar:#2c3541;--line:#2a323d}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:860px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button,select,input{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+button{cursor:pointer}button.p{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+input{width:80px}
+.status{color:var(--mute);font-size:14px;margin-left:auto}
+.big{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;text-align:center}
+.big .v{font-size:56px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.big .l{color:var(--mute);font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-top:6px}
+.target .v{color:var(--accent)}
+.tl{display:flex;align-items:flex-end;gap:2px;height:130px;margin-top:8px}
+.tl div{position:relative;background:var(--bar);border-radius:3px 3px 0 0;overflow:hidden;min-width:2px}
+.tl div i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);opacity:.9}
+.tl div.done{background:var(--accent);opacity:.45}
+.tl div.cur{outline:2px solid var(--text);outline-offset:-2px}
+.up{list-style:none;margin:8px 0 0;padding:0}
+.up li{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.up li:first-child{border-top:0}
+.up b{color:var(--accent)}
+.mute{color:var(--mute)}
+.under{color:#e03131}.over{color:#e8a008}.on{color:var(--ok)}
+label{font-size:14px;color:var(--mute)}
+</style>
+</head>
+<body>
+<main>
+<h1>ðŸš´ Indoor Trainer</h1>
+<div class="card row">
+  <button class="p" id="conn">Connect trainer</button>
+  <button id="demo">Demo mode</button>
+  <label>FTP <input id="ftp" type="number" value="200" min="50" max="600"> W</label>
+  <label><input type="checkbox" id="erg" checked style="width:auto"> ERG</label>
+  <span class="status" id="status">Not connected</span>
+</div>
+<div class="card row">
+  <select id="wo"></select>
+  <button id="add">Add .zwo files</button><input type="file" id="file" accept=".zwo,.xml" multiple hidden>
+  <button class="p" id="go">Start</button>
+  <button id="skip">Skip block</button>
+  <button id="reset">Reset</button>
+  <button id="save" disabled>Save ride (.tcx)</button>
+  <span class="mute" id="total"></span>
+</div>
+<div class="card">
+  <div class="mute" id="blockname">Ready</div>
+  <div class="big">
+    <div class="target"><div class="v" id="tw">â€“</div><div class="l">Target watts</div></div>
+    <div><div class="v" id="pw">â€“</div><div class="l">Power (W)</div></div>
+    <div><div class="v" id="cad">â€“</div><div class="l">Cadence</div></div>
+    <div><div class="v" id="left">â€“</div><div class="l">Block time left</div></div>
+  </div>
+</div>
+<div class="card">
+  <div class="row" style="justify-content:space-between"><strong>Current interval</strong><span class="mute" id="ivt"></span></div>
+  <canvas id="ivc" style="width:100%;height:120px;display:block;margin-top:8px"></canvas>
+</div>
+<div class="card">
+  <strong>Workout profile</strong>
+  <div class="tl" id="tl"></div>
+</div>
+<div class="card">
+  <strong>Coming up</strong>
+  <ul class="up" id="up"></ul>
+</div>
+<p class="mute" style="font-size:13px">Web Bluetooth needs Chrome, Edge or Opera on desktop or Android (not Safari/iOS) and a trainer that supports FTMS. Without a trainer, use Demo mode.</p>
+</main>
+<script>
+const rep=(n,a)=>Array.from({length:n},()=>a).flat();
+const WO={
+"Sweet spot 50":[["Warm-up",300,55],["Ramp",120,75],...rep(3,[["Sweet spot",600,90],["Recovery",180,55]]).flat(),["Cool-down",300,45]].flat(1),
+"VO2 intervals 45":[["Warm-up",600,55],...rep(5,[["VO2 max",180,120],["Recovery",180,50]]),["Cool-down",300,45]],
+"Endurance 60":[["Warm-up",300,50],["Endurance",3000,65],["Cool-down",300,45]]
+};
+// normalise nested arrays
+for(const k in WO){const out=[];(function f(a){if(typeof a[0]==="string")out.push(a);else a.forEach(f)})(WO[k]);WO[k]=out}
+const $=id=>document.getElementById(id);
+const S={rec:[],blocks:[],i:0,el:0,run:false,pw:null,cad:null,ctrl:null,sim:false,timer:null,queue:Promise.resolve()};
+const ftp=()=>+$("ftp").value||200;
+const watts=b=>Math.round(ftp()*b[2]/100);
+const fmt=s=>Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0");
+function lbl(k){
+  const m=Math.round(WO[k].reduce((a,b)=>a+b[1],0)/60),h=Math.floor(m/60);
+  return k+" Â· "+(h?h+"h "+String(m%60).padStart(2,"0")+"m":m+" min");
+}
+Object.keys(WO).forEach(k=>$("wo").add(new Option(lbl(k),k)));
+
+function parseZwo(txt,fname){
+  const doc=new DOMParser().parseFromString(txt,"text/xml");
+  const w=doc.querySelector("workout");
+  if(doc.querySelector("parsererror")||!w)throw new Error("invalid");
+  const num=(el,a,d=0)=>{const v=parseFloat(el.getAttribute(a));return isNaN(v)?d:v};
+  const r1=p=>Math.round(p*10)/10;
+  const blocks=[];
+  const ramp=(name,dur,a,b)=>{
+    const k=Math.max(1,Math.round(dur/60));let used=0;
+    for(let j=0;j<k;j++){const d=j==k-1?dur-used:Math.round(dur/k);used+=d;blocks.push([name,d,r1(a+(b-a)*(j+.5)/k)])}
+  };
+  for(const el of w.children){
+    const t=el.tagName,dur=num(el,"Duration");
+    if(t=="Warmup"||t=="Cooldown"||t=="Ramp")ramp(t=="Warmup"?"Warm-up":t=="Cooldown"?"Cool-down":"Ramp",dur,num(el,"PowerLow")*100,num(el,"PowerHigh")*100);
+    else if(t=="SteadyState"||t=="SolidState")blocks.push(["Steady",dur,r1(num(el,"Power")*100)]);
+    else if(t=="IntervalsT"){for(let j=0;j<num(el,"Repeat",1);j++){blocks.push(["On",num(el,"OnDuration"),r1(num(el,"OnPower")*100)]);blocks.push(["Off",num(el,"OffDuration"),r1(num(el,"OffPower")*100)])}}
+    else if(t=="FreeRide")blocks.push(["Free ride",dur,55]);
+    else if(t=="MaxEffort")blocks.push(["Max effort",dur,150]);
+  }
+  const nm=doc.querySelector("name");
+  return{name:(nm&&nm.textContent.trim())||fname.replace(/\.\w+$/,""),blocks:blocks.filter(b=>b[1]>0)};
+}
+$("add").onclick=()=>$("file").click();
+$("file").onchange=async e=>{
+  let last=null;const bad=[];
+  for(const f of e.target.files){
+    try{
+      const wo=parseZwo(await f.text(),f.name);
+      if(!wo.blocks.length)throw new Error("empty");
+      let nm=wo.name,c=2;while(WO[nm])nm=wo.name+" ("+(c++)+")";
+      WO[nm]=wo.blocks;$("wo").add(new Option(lbl(nm),nm));last=nm;
+    }catch(err){bad.push(f.name)}
+  }
+  e.target.value="";
+  if(last){$("wo").value=last;load()}
+  if(bad.length)$("total").textContent="Could not read: "+bad.join(", ");
+};
+function load(){
+  S.rec=[];$("save").disabled=true;$("save").className="";S.blocks=WO[$("wo").value];S.i=0;S.el=0;S.run=false;$("go").textContent="Start";
+  const tot=S.blocks.reduce((a,b)=>a+b[1],0);$("total").textContent="Total "+fmt(tot);
+  const max=Math.max(...S.blocks.map(b=>b[2]));
+  $("tl").innerHTML="";
+  S.blocks.forEach(b=>{const d=document.createElement("div");d.style.flex=b[1];d.style.height=(b[2]/max*100)+"%";d.title=b[0]+" Â· "+watts(b)+" W";d.innerHTML="<i></i>";$("tl").append(d)});
+  render();
+}
+function drawIv(){
+  const cv=$("ivc"),b=S.blocks[S.i],dpr=window.devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;
+  if(!w)return;
+  cv.width=w*dpr;cv.height=h*dpr;
+  const g=cv.getContext("2d");g.scale(dpr,dpr);
+  $("ivt").textContent=b?`${b[0]} Â· ${fmt(S.el)} / ${fmt(b[1])}`:"";
+  if(!b)return;
+  const cs=getComputedStyle(document.documentElement),col=n=>cs.getPropertyValue(n).trim();
+  const tw=watts(b),pts=S.rec.filter(p=>p.b==S.i),max=Math.max(tw*1.4,50,...pts.map(p=>p.w));
+  const X=s=>s/b[1]*w,Y=v=>h-v/max*h;
+  g.fillStyle=col("--bar");g.fillRect(0,Y(tw),w,h-Y(tw));
+  g.fillStyle=col("--accent");g.globalAlpha=.8;g.fillRect(0,Y(tw),X(S.el),h-Y(tw));g.globalAlpha=1;
+  if(pts.length){
+    g.beginPath();pts.forEach((p,n)=>n?g.lineTo(X(p.e),Y(p.w)):g.moveTo(X(p.e),Y(p.w)));
+    g.strokeStyle=col("--text");g.lineWidth=2;g.stroke();
+  }
+  g.fillStyle=col("--text");g.fillRect(Math.min(X(S.el),w-2),0,2,h);
+  g.font="600 13px system-ui,sans-serif";g.fillText(tw+" W",8,Math.max(14,Y(tw)-6));
+}
+addEventListener("resize",drawIv);
+function render(){
+  const b=S.blocks[S.i];
+  [...$("tl").children].forEach((d,n)=>{d.className=n<S.i?"done":n==S.i?"cur":"";d.firstChild.style.width=n==S.i?(S.el/b[1]*100)+"%":"0"});
+  if(!b){$("blockname").textContent="Workout complete ðŸŽ‰";drawIv();$("tw").textContent="â€“";$("left").textContent="â€“";$("up").innerHTML="";return}
+  $("blockname").textContent=`Block ${S.i+1} of ${S.blocks.length} Â· ${b[0]} Â· ${b[2]}% FTP`;
+  $("tw").textContent=watts(b);$("left").textContent=fmt(b[1]-S.el);
+  $("pw").textContent=S.pw??"â€“";$("cad").textContent=S.cad!=null?Math.round(S.cad):"â€“";
+  $("pw").className="v "+(S.pw==null?"":S.pw<watts(b)*.93?"under":S.pw>watts(b)*1.07?"over":"on");
+  drawIv();let t=b[1]-S.el;
+  $("up").innerHTML=S.blocks.slice(S.i+1,S.i+6).map(n=>{const r=`<li><span>${n[0]} <span class="mute">Â· ${fmt(n[1])}</span></span><span><b>${watts(n)} W</b> <span class="mute">in ${fmt(t)}</span></span></li>`;t+=n[1];return r}).join("")||'<li class="mute">Last block</li>';
+}
+function send(bytes){if(!S.ctrl)return;S.queue=S.queue.then(()=>S.ctrl.writeValueWithResponse(new Uint8Array(bytes))).catch(()=>{})}
+function setTarget(){const b=S.blocks[S.i];if(b&&$("erg").checked){const w=watts(b);send([0x05,w&255,w>>8])}}
+function tick(){
+  if(!S.run)return;const b=S.blocks[S.i];if(!b)return;
+  if(S.sim){S.pw=Math.max(0,Math.round(watts(b)+(Math.random()-.5)*20));S.cad=88+Math.random()*6}
+  if(S.pw!=null){S.rec.push({t:Date.now(),w:S.pw,c:S.cad,b:S.i,e:S.el});$("save").disabled=false}
+  S.el++;
+  if(S.el>=b[1]){S.i++;S.el=0;if(!S.blocks[S.i]){S.run=false;$("go").textContent="Start";$("save").className="p";$("total").textContent="Workout complete â€“ save your ride"}else setTarget()}
+  render();
+}
+$("go").onclick=()=>{
+  if(!S.blocks[S.i]){load()}
+  S.run=!S.run;$("go").textContent=S.run?"Pause":"Resume";
+  if(S.run){setTarget();send([0x07])}
+};
+$("skip").onclick=()=>{if(S.blocks[S.i]){S.i++;S.el=0;setTarget();render()}};
+$("reset").onclick=load;$("wo").onchange=load;$("ftp").onchange=()=>{load()};
+$("erg").onchange=setTarget;
+$("demo").onclick=()=>{S.sim=!S.sim;$("demo").textContent=S.sim?"Stop demo":"Demo mode";$("status").textContent=S.sim?"Demo mode (simulated power)":"Not connected";if(!S.sim){S.pw=S.cad=null}render()};
+
+function parseBike(dv){
+  const f=dv.getUint16(0,true);let o=2;
+  if(!(f&1))o+=2;if(f&2)o+=2;
+  if(f&4){S.cad=dv.getUint16(o,true)/2;o+=2}
+  if(f&8)o+=2;if(f&16)o+=3;if(f&32)o+=2;
+  if(f&64)S.pw=dv.getInt16(o,true);
+  render();
+}
+$("conn").onclick=async()=>{
+  if(!navigator.bluetooth){$("status").textContent="Web Bluetooth not supported in this browser";return}
+  try{
+    const dev=await navigator.bluetooth.requestDevice({filters:[{services:[0x1826]},{services:[0x1818]}],optionalServices:[0x1826,0x1818]});
+    $("status").textContent="Connectingâ€¦";
+    dev.addEventListener("gattserverdisconnected",()=>{S.ctrl=null;$("status").textContent="Disconnected"});
+    const srv=await dev.gatt.connect();
+    try{
+      const ftms=await srv.getPrimaryService(0x1826);
+      const data=await ftms.getCharacteristic(0x2AD2);
+      await data.startNotifications();
+      data.addEventListener("characteristicvaluechanged",e=>parseBike(e.target.value));
+      try{
+        S.ctrl=await ftms.getCharacteristic(0x2AD9);
+        await S.ctrl.startNotifications().catch(()=>{});
+        send([0x00]);
+        $("status").textContent=dev.name+" Â· ERG control ready";
+      }catch{$("status").textContent=dev.name+" Â· power only"}
+    }catch{
+      const pm=await srv.getPrimaryService(0x1818);
+      const c=await pm.getCharacteristic(0x2A63);
+      await c.startNotifications();
+      c.addEventListener("characteristicvaluechanged",e=>{S.pw=e.target.value.getInt16(2,true);render()});
+      $("status").textContent=dev.name+" Â· power meter (no ERG)";
+    }
+    S.sim=false;
+  }catch(e){$("status").textContent="Could not connect: "+(e.message||e)}
+};
+const iso=t=>new Date(t).toISOString();
+function buildTcx(){
+  const r=S.rec,esc=s=>s.replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+  const groups=[];
+  r.forEach(p=>{const g=groups[groups.length-1];if(g&&g.b==p.b)g.p.push(p);else groups.push({b:p.b,p:[p]})});
+  const laps=groups.map(g=>{
+    const tp=g.p.map(p=>`<Trackpoint><Time>${iso(p.t)}</Time>${p.c!=null?`<Cadence>${Math.min(254,Math.round(p.c))}</Cadence>`:""}<Extensions><TPX xmlns="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><Watts>${Math.max(0,p.w)}</Watts></TPX></Extensions></Trackpoint>`).join("");
+    const dur=Math.round((g.p[g.p.length-1].t-g.p[0].t)/1000)+1;
+    return `<Lap StartTime="${iso(g.p[0].t)}"><TotalTimeSeconds>${dur}</TotalTimeSeconds><DistanceMeters>0</DistanceMeters><Calories>0</Calories><Intensity>Active</Intensity><TriggerMethod>Manual</TriggerMethod><Track>${tp}</Track></Lap>`;
+  }).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"><Activities><Activity Sport="Biking"><Id>${iso(r[0].t)}</Id>${laps}<Notes>${esc($("wo").value)}</Notes></Activity></Activities></TrainingCenterDatabase>`;
+}
+function crc32(u){let t=crc32.t;if(!t){t=crc32.t=[];for(let n=0,c;n<256;n++){c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}}let x=-1;for(const b of u)x=t[(x^b)&255]^(x>>>8);return(x^-1)>>>0}
+function zip(name,str){
+  const te=new TextEncoder(),nb=te.encode(name),d=te.encode(str),crc=crc32(d),dt=new Date();
+  const time=(dt.getHours()<<11)|(dt.getMinutes()<<5)|(dt.getSeconds()>>1),date=((dt.getFullYear()-1980)<<9)|((dt.getMonth()+1)<<5)|dt.getDate();
+  const lh=new DataView(new ArrayBuffer(30)),ch=new DataView(new ArrayBuffer(46)),e=new DataView(new ArrayBuffer(22));
+  lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x800,true);lh.setUint16(10,time,true);lh.setUint16(12,date,true);lh.setUint32(14,crc,true);lh.setUint32(18,d.length,true);lh.setUint32(22,d.length,true);lh.setUint16(26,nb.length,true);
+  ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x800,true);ch.setUint16(12,time,true);ch.setUint16(14,date,true);ch.setUint32(16,crc,true);ch.setUint32(20,d.length,true);ch.setUint32(24,d.length,true);ch.setUint16(28,nb.length,true);
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,1,true);e.setUint16(10,1,true);e.setUint32(12,46+nb.length,true);e.setUint32(16,30+nb.length+d.length,true);
+  return new Blob([lh,nb,d,ch,nb,e],{type:"application/zip"});
+}
+$("save").onclick=async()=>{
+  if(!S.rec.length)return;
+  const base="ride-"+iso(S.rec[0].t).slice(0,16).replace(/[:T]/g,"-"),tcx=buildTcx();
+  try{
+    const dl=window.claude&&await claude.use("downloads");
+    if(dl){await dl.save({filename:base+".zip",data:zip(base+".tcx",tcx)});$("total").textContent="Saved â€“ unzip it and upload the .tcx to Strava"}
+    else{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([tcx],{type:"application/xml"}));a.download=base+".tcx";a.click()}
+  }catch(e){if(!e||e.code!=="declined")$("total").textContent="Could not save: "+((e&&e.message)||e)}
+};
+S.timer=setInterval(tick,1000);
+load();
+</script>
+</body>
+</html>
