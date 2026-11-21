@@ -39,7 +39,7 @@ label{font-size:14px;color:var(--mute)}
 </head>
 <body>
 <main>
-<h1>ðŸš´ Indoor Trainer</h1>
+<h1>&#128692; Indoor Trainer</h1>
 <div class="card row">
   <button class="p" id="conn">Connect trainer</button>
   <button id="demo">Demo mode</button>
@@ -60,10 +60,10 @@ label{font-size:14px;color:var(--mute)}
 <div class="card">
   <div class="mute" id="blockname">Ready</div>
   <div class="big">
-    <div class="target"><div class="v" id="tw">â€“</div><div class="l">Target watts</div></div>
-    <div><div class="v" id="pw">â€“</div><div class="l">Power (W)</div></div>
-    <div><div class="v" id="cad">â€“</div><div class="l">Cadence</div></div>
-    <div><div class="v" id="left">â€“</div><div class="l">Block time left</div></div>
+    <div class="target"><div class="v" id="tw">&#8211;</div><div class="l">Target watts</div></div>
+    <div><div class="v" id="pw">&#8211;</div><div class="l">Power (W)</div></div>
+    <div><div class="v" id="cad">&#8211;</div><div class="l">Cadence</div></div>
+    <div><div class="v" id="left">&#8211;</div><div class="l">Block time left</div></div>
   </div>
 </div>
 <div class="card">
@@ -165,7 +165,7 @@ function load(){
   const tot=S.blocks.reduce((a,b)=>a+b[1],0);$("total").textContent="Total "+fmt(tot);
   const max=Math.max(...S.blocks.map(b=>b[2]));
   $("tl").innerHTML="";
-  S.blocks.forEach(b=>{const d=document.createElement("div");d.style.flex=b[1];d.style.height=(b[2]/max*100)+"%";d.title=b[0]+" Â· "+watts(b)+" W";d.innerHTML="<i></i>";$("tl").append(d)});
+  S.blocks.forEach(b=>{const d=document.createElement("div");d.style.flex=b[1];d.style.height=(b[2]/max*100)+"%";d.title=b[0]+" \u00b7 "+watts(b)+" W";d.innerHTML="<i></i>";$("tl").append(d)});
   render();
 }
 function drawIv(){
@@ -173,7 +173,7 @@ function drawIv(){
   if(!w)return;
   cv.width=w*dpr;cv.height=h*dpr;
   const g=cv.getContext("2d");g.scale(dpr,dpr);
-  $("ivt").textContent=b?`${b[0]} Â· ${fmt(S.el)} / ${fmt(b[1])}`:"";
+  $("ivt").textContent=b?`${b[0]} \u00b7 ${fmt(S.el)} / ${fmt(b[1])}`:"";
   if(!b)return;
   const cs=getComputedStyle(document.documentElement),col=n=>cs.getPropertyValue(n).trim();
   const tw=watts(b),pts=S.rec.filter(p=>p.b==S.i),max=Math.max(tw*1.4,50,...pts.map(p=>p.w));
@@ -191,13 +191,13 @@ addEventListener("resize",drawIv);
 function render(){
   const b=S.blocks[S.i];
   [...$("tl").children].forEach((d,n)=>{d.className=n<S.i?"done":n==S.i?"cur":"";d.firstChild.style.width=n==S.i?(S.el/b[1]*100)+"%":"0"});
-  if(!b){$("blockname").textContent="Workout complete ðŸŽ‰";drawIv();$("tw").textContent="â€“";$("left").textContent="â€“";$("up").innerHTML="";return}
-  $("blockname").textContent=`Block ${S.i+1} of ${S.blocks.length} Â· ${b[0]} Â· ${b[2]}% FTP`;
+  if(!b){$("blockname").textContent="Workout complete \ud83c\udf89";drawIv();$("tw").textContent="\u2013";$("left").textContent="\u2013";$("up").innerHTML="";return}
+  $("blockname").textContent=`Block ${S.i+1} of ${S.blocks.length} \u00b7 ${b[0]} \u00b7 ${b[2]}% FTP`;
   $("tw").textContent=watts(b);$("left").textContent=fmt(b[1]-S.el);
-  $("pw").textContent=S.pw??"â€“";$("cad").textContent=S.cad!=null?Math.round(S.cad):"â€“";
+  $("pw").textContent=S.pw??"\u2013";$("cad").textContent=S.cad!=null?Math.round(S.cad):"\u2013";
   $("pw").className="v "+(S.pw==null?"":S.pw<watts(b)*.93?"under":S.pw>watts(b)*1.07?"over":"on");
   drawIv();let t=b[1]-S.el;
-  $("up").innerHTML=S.blocks.slice(S.i+1,S.i+6).map(n=>{const r=`<li><span>${n[0]} <span class="mute">Â· ${fmt(n[1])}</span></span><span><b>${watts(n)} W</b> <span class="mute">in ${fmt(t)}</span></span></li>`;t+=n[1];return r}).join("")||'<li class="mute">Last block</li>';
+  $("up").innerHTML=S.blocks.slice(S.i+1,S.i+6).map(n=>{const r=`<li><span>${n[0]} <span class="mute">\u00b7 ${fmt(n[1])}</span></span><span><b>${watts(n)} W</b> <span class="mute">in ${fmt(t)}</span></span></li>`;t+=n[1];return r}).join("")||'<li class="mute">Last block</li>';
 }
 function send(bytes){if(!S.ctrl)return;S.queue=S.queue.then(()=>S.ctrl.writeValueWithResponse(new Uint8Array(bytes))).catch(()=>{})}
 function setTarget(){const b=S.blocks[S.i];if(b&&$("erg").checked){const w=watts(b);send([0x05,w&255,w>>8])}}
@@ -206,7 +206,7 @@ function tick(){
   if(S.sim){S.pw=Math.max(0,Math.round(watts(b)+(Math.random()-.5)*20));S.cad=88+Math.random()*6}
   if(S.pw!=null){S.rec.push({t:Date.now(),w:S.pw,c:S.cad,b:S.i,e:S.el});$("save").disabled=false}
   S.el++;
-  if(S.el>=b[1]){S.i++;S.el=0;if(!S.blocks[S.i]){S.run=false;$("go").textContent="Start";$("save").className="p";$("total").textContent="Workout complete â€“ save your ride"}else setTarget()}
+  if(S.el>=b[1]){S.i++;S.el=0;if(!S.blocks[S.i]){S.run=false;$("go").textContent="Start";$("save").className="p";$("total").textContent="Workout complete \u2013 save your ride"}else setTarget()}
   render();
 }
 $("go").onclick=()=>{
@@ -231,7 +231,7 @@ $("conn").onclick=async()=>{
   if(!navigator.bluetooth){$("status").textContent="Web Bluetooth not supported in this browser";return}
   try{
     const dev=await navigator.bluetooth.requestDevice({filters:[{services:[0x1826]},{services:[0x1818]}],optionalServices:[0x1826,0x1818]});
-    $("status").textContent="Connectingâ€¦";
+    $("status").textContent="Connecting\u2026";
     dev.addEventListener("gattserverdisconnected",()=>{S.ctrl=null;$("status").textContent="Disconnected"});
     const srv=await dev.gatt.connect();
     try{
@@ -243,14 +243,14 @@ $("conn").onclick=async()=>{
         S.ctrl=await ftms.getCharacteristic(0x2AD9);
         await S.ctrl.startNotifications().catch(()=>{});
         send([0x00]);
-        $("status").textContent=dev.name+" Â· ERG control ready";
-      }catch{$("status").textContent=dev.name+" Â· power only"}
+        $("status").textContent=dev.name+" \u00b7 ERG control ready";
+      }catch{$("status").textContent=dev.name+" \u00b7 power only"}
     }catch{
       const pm=await srv.getPrimaryService(0x1818);
       const c=await pm.getCharacteristic(0x2A63);
       await c.startNotifications();
       c.addEventListener("characteristicvaluechanged",e=>{S.pw=e.target.value.getInt16(2,true);render()});
-      $("status").textContent=dev.name+" Â· power meter (no ERG)";
+      $("status").textContent=dev.name+" \u00b7 power meter (no ERG)";
     }
     S.sim=false;
   }catch(e){$("status").textContent="Could not connect: "+(e.message||e)}
@@ -282,7 +282,7 @@ $("save").onclick=async()=>{
   const base="ride-"+iso(S.rec[0].t).slice(0,16).replace(/[:T]/g,"-"),tcx=buildTcx();
   try{
     const dl=window.claude&&await claude.use("downloads");
-    if(dl){await dl.save({filename:base+".zip",data:zip(base+".tcx",tcx)});$("total").textContent="Saved â€“ unzip it and upload the .tcx to Strava"}
+    if(dl){await dl.save({filename:base+".zip",data:zip(base+".tcx",tcx)});$("total").textContent="Saved \u2013 unzip it and upload the .tcx to Strava"}
     else{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([tcx],{type:"application/xml"}));a.download=base+".tcx";a.click()}
   }catch(e){if(!e||e.code!=="declined")$("total").textContent="Could not save: "+((e&&e.message)||e)}
 };
