@@ -221,9 +221,10 @@ function drawHr(){
   cv.width=w*dpr;cv.height=h*dpr;
   const g=cv.getContext("2d");g.scale(dpr,dpr);
   const cs=getComputedStyle(document.documentElement),col=n=>cs.getPropertyValue(n).trim();
-  const W=1800,ws=Math.max(0,S.ride-W);
-  const pts=[];let lo=1e9,hi=0;
-  for(const p of S.rec)if(p.h!=null&&p.r>=ws){pts.push([(p.r-ws)/W,p.h]);if(p.h<lo)lo=p.h;if(p.h>hi)hi=p.h}
+  const W=900,ws=Math.max(0,S.ride-W);
+  const pts=[],bk=new Map();let lo=1e9,hi=0;
+  for(const p of S.rec)if(p.h!=null&&p.r>=ws){const k=Math.floor(p.r/10),e=bk.get(k)||[0,0,0];e[0]+=p.h;e[1]++;e[2]+=p.r;bk.set(k,e)}
+  bk.forEach(e=>{const v=e[0]/e[1];pts.push([Math.max(0,(e[2]/e[1]-ws)/W),v]);if(v<lo)lo=v;if(v>hi)hi=v});
   if(!pts.length){lo=90;hi=200}else{lo-=10;hi+=30}
   const L=30,T=6,B=h-18,R=w-4,X=f=>L+f*(R-L),Y=v=>B-(Math.min(hi,Math.max(lo,v))-lo)/(hi-lo)*(B-T);
   g.strokeStyle=col("--line");g.lineWidth=1;
