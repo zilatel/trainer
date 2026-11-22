@@ -31,10 +31,10 @@ input{width:80px}
 .tl div.cur b{display:block}
 .up{list-style:none;margin:8px 0 0;padding:0}
 .up li{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;font-size:14px}
-.up li b{color:var(--accent)}
+.up li b{padding:1px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
 .up li.done{opacity:.45}
-.up li.now{background:var(--accent);color:#fff;border-color:transparent;font-weight:600;box-shadow:0 0 0 2px var(--accent),0 0 10px var(--accent)}
-.up li.now b,.up li.now .mute{color:#fff}
+.up li.now{background:rgba(255,138,61,.22);border-color:transparent;font-weight:600;box-shadow:0 0 0 2px var(--accent),0 0 10px var(--accent)}
+
 .upwrap{position:absolute;left:8px;right:8px;top:44px;bottom:8px;overflow-y:auto;padding:8px 4px 4px}
 .grid{display:grid;grid-template-columns:320px 1fr;gap:12px;align-items:stretch;margin-bottom:12px}
 .grid>div>.card:last-child,.grid>.upbox{margin-bottom:0}
@@ -53,6 +53,7 @@ label{font-size:14px;color:var(--mute)}
 <h1>&#128692; Indoor Trainer</h1>
 <div class="card row" id="top1">
   <button class="p" id="conn">Connect trainer</button>
+  <button id="connhr">Connect heartrate monitor</button>
   <button id="demo">Demo mode</button>
   <label>FTP <input id="ftp" type="number" value="200" min="50" max="600"> W</label>
   <label><input type="checkbox" id="erg" checked style="width:auto"> ERG</label>
@@ -77,11 +78,11 @@ label{font-size:14px;color:var(--mute)}
   </div>
 </div>
 <div class="card">
-  <strong id="blockname">Power and cadence</strong>
+  <strong id="blockname">Power, cadence &amp; heartrate</strong>
   <div class="big">
-    <div class="target"><div class="v" id="tw">&#8211;</div><div class="l">Target watts</div></div>
     <div><div class="v" id="pw">&#8211;</div><div class="l">Power (W)</div></div>
     <div><div class="v" id="pct">&#8211;</div><div class="l">% of FTP</div></div>
+    <div><div class="v" id="hr">&#8211;</div><div class="l">Heartrate (bpm)</div></div>
     <div><div class="v" id="cad">&#8211;</div><div class="l">Cadence</div></div>
     <div><div class="v" id="avg">&#8211;</div><div class="l">Avg power (W)</div></div>
   </div>
@@ -92,13 +93,17 @@ label{font-size:14px;color:var(--mute)}
   <div class="upwrap" id="upwrap"><ul class="up" id="up"></ul></div>
 </div>
 <div>
-<div class="card">
-  <div class="row" style="justify-content:space-between;align-items:flex-start"><div><strong>Current interval</strong><div class="mute" id="ivt" style="font-size:14px"></div></div><div style="text-align:right"><div class="tleft" id="left">&#8211;</div><div class="mute" style="font-size:13px;text-transform:uppercase;letter-spacing:.05em">Time left</div></div></div>
+<div class="card" id="ivcard">
+  <div class="row" style="justify-content:space-between;align-items:flex-start"><div><strong>Current interval</strong><div class="mute" id="ivt" style="font-size:14px"></div></div><div style="text-align:center"><div class="tleft" id="trange" style="white-space:nowrap">&#8211;</div><div class="mute" style="font-size:13px;text-transform:uppercase;letter-spacing:.05em">Power target (W)</div></div><div style="text-align:right"><div class="tleft" id="left">&#8211;</div><div class="mute" style="font-size:13px;text-transform:uppercase;letter-spacing:.05em">Time left</div></div></div>
   <canvas id="ivc" style="width:100%;height:60px;display:block;margin-top:8px"></canvas>
 </div>
 <div class="card">
   <div class="row" style="justify-content:space-between;align-items:flex-start"><strong>Workout profile</strong><div style="text-align:right"><button class="sm" id="tgl" style="margin:0 0 6px">Hide time left</button><div id="ttbox"><div class="tleft" id="tleft">&#8211;</div><div class="mute" style="font-size:13px;text-transform:uppercase;letter-spacing:.05em">Time left</div></div></div></div>
   <div class="tl" id="tl"></div>
+</div>
+<div class="card" id="hrcard" style="display:flex;flex-direction:column">
+  <strong>Heartrate profile</strong>
+  <div style="position:relative;flex:1;min-height:0;margin-top:8px"><canvas id="hrc" style="position:absolute;inset:0;width:100%;height:100%"></canvas></div>
 </div>
 </div>
 </div>
@@ -198,20 +203,46 @@ function zoneColor(b){
 }
 function setTop(h){$("top1").style.display=$("top2").style.display=h?"none":""}
 function load(){
-  S.rec=[];S.sum=0;S.ride=0;$("desc").textContent=DESC[$("wo").value]||"";$("descbox").style.display=DESC[$("wo").value]?"":"none";S.blocks=WO[$("wo").value];S.i=0;S.el=0;S.run=false;setTop(false);$("go").textContent="Start";
+  S.rec=[];S.sum=0;S.ride=0;S.hrT=0;$("desc").textContent=DESC[$("wo").value]||"";$("descbox").style.display=DESC[$("wo").value]?"":"none";S.blocks=WO[$("wo").value];S.i=0;S.el=0;S.run=false;setTop(false);$("go").textContent="Start";
   const tot=S.blocks.reduce((a,b)=>a+b[1],0);$("total").textContent="Total "+fmt(tot);
   const max=Math.max(...S.blocks.map(b=>b[2])),mn=Math.min(...S.blocks.map(b=>b[2])),hh=p=>max>mn?6+(p-mn)/(max-mn)*94:100;
   $("tl").innerHTML="";
-  $("up").innerHTML=S.blocks.map((b,n)=>`<li><span>Interval ${n+1}</span><span><b>${watts(b)} W</b></span></li>`).join("");S.lastI=-1;
+  $("up").innerHTML=S.blocks.map((b,n)=>`<li><span>Interval ${n+1}</span><span><b style="background:${zoneColor(b)};color:${zoneColor(b)=="#f2c230"?"#1a1a1a":"#fff"}">${watts(b)} W</b></span></li>`).join("");S.lastI=-1;
   S.blocks.forEach(b=>{const d=document.createElement("div");d.style.flex=b[1];d.style.height=hh(b[2])+"%";d.style.background=zoneColor(b);d.title=b[0]+" \u00b7 "+watts(b)+" W";d.innerHTML="<i></i><b></b>";$("tl").append(d)});
   render();
 }
+function drawHr(){
+  const cv=$("hrc");
+  $("hrcard").style.height=$("ivcard").offsetHeight+"px";
+  const now=Date.now();if(now-(S.hrT||0)<900)return;S.hrT=now;
+  const dpr=window.devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;
+  if(!w||!h)return;
+  cv.width=w*dpr;cv.height=h*dpr;
+  const g=cv.getContext("2d");g.scale(dpr,dpr);
+  const cs=getComputedStyle(document.documentElement),col=n=>cs.getPropertyValue(n).trim();
+  const W=1800,ws=Math.max(0,S.ride-W);
+  const pts=[];let lo=1e9,hi=0;
+  for(const p of S.rec)if(p.h!=null&&p.r>=ws){pts.push([(p.r-ws)/W,p.h]);if(p.h<lo)lo=p.h;if(p.h>hi)hi=p.h}
+  if(!pts.length){lo=90;hi=200}else{lo-=10;hi+=30}
+  const L=30,T=6,B=h-18,R=w-4,X=f=>L+f*(R-L),Y=v=>B-(Math.min(hi,Math.max(lo,v))-lo)/(hi-lo)*(B-T);
+  g.strokeStyle=col("--line");g.lineWidth=1;
+  [lo,hi].forEach(v=>{g.beginPath();g.moveTo(L,Y(v));g.lineTo(R,Y(v));g.stroke()});
+  g.fillStyle=col("--mute");g.font="11px system-ui,sans-serif";
+  g.fillText(Math.round(hi),0,Y(hi)+4);g.fillText(Math.round(lo),0,Y(lo)+4);
+  g.fillText(fmt(ws),L,h-4);g.textAlign="right";g.fillText(fmt(ws+W),R,h-4);g.textAlign="left";
+  if(!pts.length){g.textAlign="center";g.fillText("Connect a heartrate monitor to see your heartrate",(L+R)/2,h/2);return}
+  const step=Math.max(1,Math.floor(pts.length/(R-L)));
+  g.beginPath();
+  for(let n=0;n<pts.length;n+=step){const p=pts[n];n?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1]))}
+  g.strokeStyle="#e03131";g.lineWidth=2;g.lineJoin="round";g.stroke();
+}
 function drawIv(){
+  drawHr();
   const cv=$("ivc"),b=S.blocks[S.i],dpr=window.devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;
   if(!w)return;
   cv.width=w*dpr;cv.height=h*dpr;
   const g=cv.getContext("2d");g.scale(dpr,dpr);
-  $("ivt").textContent="";
+  $("ivt").textContent="";$("trange").textContent=b?`${Math.round(watts(b)*.93)}\u2013${Math.round(watts(b)*1.07)}`:"\u2013";
   if(!b)return;
   const cs=getComputedStyle(document.documentElement),col=n=>cs.getPropertyValue(n).trim();
   const tw=watts(b),pts=S.rec.filter(p=>p.b==S.i),max=Math.max(tw*1.4,50,...pts.map(p=>p.w));
@@ -223,7 +254,7 @@ function drawIv(){
     g.strokeStyle=col("--text");g.lineWidth=2;g.stroke();
   }
   g.fillStyle=col("--text");g.fillRect(Math.min(X(S.el),w-2),0,2,h);
-  g.font="600 13px system-ui,sans-serif";g.fillText(tw+" W",8,Math.max(14,Y(tw)-6));
+  
 }
 addEventListener("resize",drawIv);
 function upd(){
@@ -244,10 +275,11 @@ function render(){
   $("avg").textContent=S.rec.length?Math.round(S.sum/S.rec.length):"\u2013";
   $("tleft").textContent=fmt(S.blocks.reduce((a,b,n)=>a+(n>S.i?b[1]:n==S.i?b[1]-S.el:0),0));
   $("ride").textContent=fmt(S.ride);
+  $("hr").textContent=S.hr??"\u2013";
   [...$("tl").children].forEach((d,n)=>{d.className=n<S.i?"done":n==S.i?"cur":"";d.firstChild.style.width=n==S.i?(S.el/b[1]*100)+"%":"0";d.lastChild.style.left=n==S.i?(S.el/b[1]*100)+"%":"0"});
-  if(!b){drawIv();$("ivt").textContent="Workout complete \ud83c\udf89";$("tw").textContent="\u2013";$("left").textContent="\u2013";upd();return}
+  if(!b){drawIv();$("ivt").textContent="Workout complete \ud83c\udf89";$("left").textContent="\u2013";upd();return}
   
-  $("tw").textContent=watts(b);$("left").textContent=fmt(b[1]-S.el);
+  $("left").textContent=fmt(b[1]-S.el);
   $("pw").textContent=S.pw??"\u2013";$("pct").textContent=S.pw!=null?Math.round(S.pw/ftp()*100)+"%":"\u2013";$("cad").textContent=S.cad!=null?Math.round(S.cad):"\u2013";
   $("pw").className="v "+(S.pw==null?"":S.pw<watts(b)*.93?"under":S.pw>watts(b)*1.07?"over":"on");
   drawIv();upd();
@@ -256,8 +288,8 @@ function send(bytes){if(!S.ctrl)return;S.queue=S.queue.then(()=>S.ctrl.writeValu
 function setTarget(){const b=S.blocks[S.i];if(b&&$("erg").checked){const w=watts(b);send([0x05,w&255,w>>8])}}
 function tick(){
   if(!S.run)return;const b=S.blocks[S.i];if(!b)return;
-  if(S.sim){S.pw=Math.max(0,Math.round(watts(b)+(Math.random()-.5)*20));S.cad=88+Math.random()*6}
-  if(S.pw!=null){S.sum+=S.pw;S.rec.push({t:Date.now(),w:S.pw,c:S.cad,b:S.i,e:S.el})}
+  if(S.sim){S.pw=Math.max(0,Math.round(watts(b)+(Math.random()-.5)*20));S.cad=88+Math.random()*6;if(!S.hrDev)S.hr=Math.round(100+b[2]*.7+Math.random()*4)}
+  if(S.pw!=null){S.sum+=S.pw;S.rec.push({t:Date.now(),w:S.pw,c:S.cad,h:S.hr,r:S.ride,b:S.i,e:S.el})}
   S.ride++;S.el++;
   if(S.el>=b[1]){S.i++;S.el=0;if(!S.blocks[S.i]){S.run=false;setTop(false);$("go").textContent="Start";$("total").textContent="Workout complete \u2013 press Stop to save your ride"}else setTarget()}
   render();
@@ -281,7 +313,7 @@ $("reset").onclick=async()=>{
   if(saved)$("total").textContent=saved;
 };$("wo").onchange=load;$("ftp").onchange=()=>{load()};
 $("erg").onchange=setTarget;
-$("demo").onclick=()=>{S.sim=!S.sim;$("demo").textContent=S.sim?"Stop demo":"Demo mode";$("status").textContent=S.sim?"Demo mode (simulated power)":"Not connected";if(!S.sim){S.pw=S.cad=null}render()};
+$("demo").onclick=()=>{S.sim=!S.sim;$("demo").textContent=S.sim?"Stop demo":"Demo mode";$("status").textContent=S.sim?"Demo mode (simulated power)":"Not connected";if(!S.sim){S.pw=S.cad=null;if(!S.hrDev)S.hr=null}render()};
 
 function parseBike(dv){
   const f=dv.getUint16(0,true);let o=2;
@@ -325,7 +357,7 @@ function buildTcx(){
   const groups=[];
   r.forEach(p=>{const g=groups[groups.length-1];if(g&&g.b==p.b)g.p.push(p);else groups.push({b:p.b,p:[p]})});
   const laps=groups.map(g=>{
-    const tp=g.p.map(p=>`<Trackpoint><Time>${iso(p.t)}</Time>${p.c!=null?`<Cadence>${Math.min(254,Math.round(p.c))}</Cadence>`:""}<Extensions><TPX xmlns="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><Watts>${Math.max(0,p.w)}</Watts></TPX></Extensions></Trackpoint>`).join("");
+    const tp=g.p.map(p=>`<Trackpoint><Time>${iso(p.t)}</Time>${p.h!=null?`<HeartRateBpm><Value>${p.h}</Value></HeartRateBpm>`:""}${p.c!=null?`<Cadence>${Math.min(254,Math.round(p.c))}</Cadence>`:""}<Extensions><TPX xmlns="http://www.garmin.com/xmlschemas/ActivityExtension/v2"><Watts>${Math.max(0,p.w)}</Watts></TPX></Extensions></Trackpoint>`).join("");
     const dur=Math.round((g.p[g.p.length-1].t-g.p[0].t)/1000)+1;
     return `<Lap StartTime="${iso(g.p[0].t)}"><TotalTimeSeconds>${dur}</TotalTimeSeconds><DistanceMeters>0</DistanceMeters><Calories>0</Calories><Intensity>Active</Intensity><TriggerMethod>Manual</TriggerMethod><Track>${tp}</Track></Lap>`;
   }).join("");
@@ -360,6 +392,19 @@ async function saveRide(){
 }
 function ask(){return new Promise(r=>{const d=$("dlg");d.style.display="flex";const done=v=>{d.style.display="none";r(v)};$("dyes").onclick=()=>done("save");$("dno").onclick=()=>done("discard");$("dcancel").onclick=()=>done("cancel")})}
 $("tgl").onclick=()=>{const h=$("ttbox").style.display=="none";$("ttbox").style.display=h?"":"none";$("tgl").textContent=h?"Hide time left":"Show time left"};
+$("connhr").onclick=async()=>{
+  if(!navigator.bluetooth){$("status").textContent="Web Bluetooth not supported in this browser";return}
+  try{
+    const dev=await navigator.bluetooth.requestDevice({filters:[{services:[0x180D]}]});
+    $("connhr").textContent="Connecting\u2026";
+    dev.addEventListener("gattserverdisconnected",()=>{S.hrDev=false;S.hr=null;$("connhr").textContent="Connect heartrate monitor";render()});
+    const srv=await dev.gatt.connect();
+    const c=await(await srv.getPrimaryService(0x180D)).getCharacteristic(0x2A37);
+    await c.startNotifications();
+    c.addEventListener("characteristicvaluechanged",e=>{const v=e.target.value;S.hr=(v.getUint8(0)&1)?v.getUint16(1,true):v.getUint8(1);render()});
+    S.hrDev=true;$("connhr").textContent="Heartrate: "+(dev.name||"connected");
+  }catch(e){$("connhr").textContent="Connect heartrate monitor";if(!e||e.name!=="NotFoundError")$("status").textContent="Heartrate monitor: "+((e&&e.message)||e)}
+};
 S.timer=setInterval(tick,1000);
 load();
 </script>
