@@ -25,9 +25,9 @@ input{width:80px}
 .target .v{color:var(--accent)}
 .tl{display:flex;align-items:flex-end;gap:2px;height:130px;margin-top:8px}
 .tl div{position:relative;background:var(--bar);border-radius:3px 3px 0 0;overflow:hidden;min-width:2px}
-.tl div i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);opacity:.9}
-.tl div.done{background:var(--accent);opacity:.45}
-.tl div b{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:#3b82f6;display:none}
+.tl div i{position:absolute;left:0;top:0;bottom:0;background:rgba(0,0,0,.4)}
+.tl div.done{filter:brightness(.6)}
+.tl div b{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.35);display:none}
 .tl div.cur b{display:block}
 .up{list-style:none;margin:8px 0 0;padding:0}
 .up li{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;font-size:14px}
@@ -36,14 +36,14 @@ input{width:80px}
 .up li.now{background:var(--accent);color:#fff;border-color:transparent;font-weight:600;box-shadow:0 0 0 2px var(--accent),0 0 10px var(--accent)}
 .up li.now b,.up li.now .mute{color:#fff}
 .upwrap{position:absolute;left:8px;right:8px;top:44px;bottom:8px;overflow-y:auto;padding:8px 4px 4px}
-.grid{display:grid;grid-template-columns:300px 1fr;gap:12px;align-items:stretch;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:320px 1fr;gap:12px;align-items:stretch;margin-bottom:12px}
 .grid>div>.card:last-child,.grid>.upbox{margin-bottom:0}
 .grid>div{min-width:0}
 .upbox{position:relative;min-height:260px}
 @media (max-width:760px){.grid{grid-template-columns:1fr}.upbox{height:55vh;order:2}}
 .mute{color:var(--mute)}
 .tleft{font-size:40px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
-.sm{padding:2px 8px;font-size:12px;margin-left:8px;color:var(--mute)}
+.sm{padding:2px 8px;font-size:12px;margin-left:8px;color:var(--mute);white-space:nowrap}
 .under{color:#e03131}.over{color:#e8a008}.on{color:var(--ok)}
 label{font-size:14px;color:var(--mute)}
 </style>
@@ -51,22 +51,30 @@ label{font-size:14px;color:var(--mute)}
 <body>
 <main>
 <h1>&#128692; Indoor Trainer</h1>
-<div class="card row">
+<div class="card row" id="top1">
   <button class="p" id="conn">Connect trainer</button>
   <button id="demo">Demo mode</button>
   <label>FTP <input id="ftp" type="number" value="200" min="50" max="600"> W</label>
   <label><input type="checkbox" id="erg" checked style="width:auto"> ERG</label>
   <span class="status" id="status">Not connected</span>
 </div>
-<div class="card row">
+<div class="card row" id="top2">
   <select id="wo"></select>
   <button id="add">Add .zwo files</button><input type="file" id="file" accept=".zwo,.xml" multiple hidden>
-  <button class="p" id="go">Start</button>
-  <button id="skip">Skip block</button>
-  <button id="reset">Stop</button>
-  <button id="save" disabled>Save ride (.tcx)</button>
   <span class="mute" id="total"></span>
-  <div class="mute" id="desc" style="font-size:13px;width:100%"></div>
+  <div id="descbox" style="width:100%"><strong>Description</strong>
+    <div class="mute" id="desc" style="font-size:13px"></div></div>
+</div>
+<div class="card">
+  <div class="row" style="justify-content:space-between;align-items:flex-start">
+    <div><strong>Controls</strong>
+      <div class="row" style="margin-top:8px">
+        <button class="p" id="go">Start</button>
+        <button id="reset">Stop</button>
+      </div>
+    </div>
+    <div style="text-align:right"><div class="tleft" id="ride">0:00</div><div class="mute" style="font-size:13px;text-transform:uppercase;letter-spacing:.05em">Ride time</div></div>
+  </div>
 </div>
 <div class="card">
   <strong id="blockname">Power and cadence</strong>
@@ -80,13 +88,13 @@ label{font-size:14px;color:var(--mute)}
 </div>
 <div class="grid">
 <div class="card upbox">
-  <strong>Intervals</strong>
+  <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:nowrap"><strong>Intervals</strong><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="sm" id="prev" style="margin:0">Previous block</button><button class="sm" id="skip" style="margin:0">Skip block</button></div></div>
   <div class="upwrap" id="upwrap"><ul class="up" id="up"></ul></div>
 </div>
 <div>
 <div class="card">
-  <div class="row" style="justify-content:space-between;align-items:flex-end"><div><strong>Current interval</strong><div class="mute" id="ivt" style="font-size:14px"></div></div><div style="text-align:right"><div class="tleft" id="left">&#8211;</div><div class="mute" style="font-size:13px;text-transform:uppercase;letter-spacing:.05em">Time left</div></div></div>
-  <canvas id="ivc" style="width:100%;height:120px;display:block;margin-top:8px"></canvas>
+  <div class="row" style="justify-content:space-between;align-items:flex-start"><div><strong>Current interval</strong><div class="mute" id="ivt" style="font-size:14px"></div></div><div style="text-align:right"><div class="tleft" id="left">&#8211;</div><div class="mute" style="font-size:13px;text-transform:uppercase;letter-spacing:.05em">Time left</div></div></div>
+  <canvas id="ivc" style="width:100%;height:60px;display:block;margin-top:8px"></canvas>
 </div>
 <div class="card">
   <div class="row" style="justify-content:space-between;align-items:flex-start"><strong>Workout profile</strong><div style="text-align:right"><button class="sm" id="tgl" style="margin:0 0 6px">Hide time left</button><div id="ttbox"><div class="tleft" id="tleft">&#8211;</div><div class="mute" style="font-size:13px;text-transform:uppercase;letter-spacing:.05em">Time left</div></div></div></div>
@@ -96,6 +104,13 @@ label{font-size:14px;color:var(--mute)}
 </div>
 <p class="mute" style="font-size:13px">Web Bluetooth needs Chrome, Edge or Opera on desktop or Android (not Safari/iOS) and a trainer that supports FTMS. Without a trainer, use Demo mode.</p>
 </main>
+<div id="dlg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:50;align-items:center;justify-content:center;padding:16px">
+  <div class="card" style="max-width:380px;margin:0">
+    <strong>Save your ride?</strong>
+    <p class="mute" style="margin:8px 0 14px">Do you want to save this ride as a .tcx file? You can choose where to save it, then upload it to Strava later.</p>
+    <div class="row" style="justify-content:flex-end"><button id="dcancel">Cancel</button><button id="dno">No, discard</button><button class="p" id="dyes">Yes, save</button></div>
+  </div>
+</div>
 <script>
 const rep=(n,a)=>Array.from({length:n},()=>a).flat();
 const WO={
@@ -176,13 +191,19 @@ $("file").onchange=async e=>{
   if(last){$("wo").value=last;load()}
   if(bad.length)$("total").textContent="Could not read: "+bad.join(", ");
 };
+function zoneColor(b){
+  if(b[0]=="Warm-up"||b[0]=="Cool-down")return"#8b95a5";
+  const p=b[2];
+  return p<56?"#3fae5a":p<76?"#3b82f6":p<91?"#f2c230":p<106?"#f08a24":"#e03131";
+}
+function setTop(h){$("top1").style.display=$("top2").style.display=h?"none":""}
 function load(){
-  S.rec=[];S.sum=0;$("save").disabled=true;$("save").className="";$("desc").textContent=DESC[$("wo").value]||"";S.blocks=WO[$("wo").value];S.i=0;S.el=0;S.run=false;$("go").textContent="Start";
+  S.rec=[];S.sum=0;S.ride=0;$("desc").textContent=DESC[$("wo").value]||"";$("descbox").style.display=DESC[$("wo").value]?"":"none";S.blocks=WO[$("wo").value];S.i=0;S.el=0;S.run=false;setTop(false);$("go").textContent="Start";
   const tot=S.blocks.reduce((a,b)=>a+b[1],0);$("total").textContent="Total "+fmt(tot);
-  const max=Math.max(...S.blocks.map(b=>b[2]));
+  const max=Math.max(...S.blocks.map(b=>b[2])),mn=Math.min(...S.blocks.map(b=>b[2])),hh=p=>max>mn?6+(p-mn)/(max-mn)*94:100;
   $("tl").innerHTML="";
   $("up").innerHTML=S.blocks.map((b,n)=>`<li><span>Interval ${n+1}</span><span><b>${watts(b)} W</b></span></li>`).join("");S.lastI=-1;
-  S.blocks.forEach(b=>{const d=document.createElement("div");d.style.flex=b[1];d.style.height=(b[2]/max*100)+"%";d.title=b[0]+" \u00b7 "+watts(b)+" W";d.innerHTML="<i></i><b></b>";$("tl").append(d)});
+  S.blocks.forEach(b=>{const d=document.createElement("div");d.style.flex=b[1];d.style.height=hh(b[2])+"%";d.style.background=zoneColor(b);d.title=b[0]+" \u00b7 "+watts(b)+" W";d.innerHTML="<i></i><b></b>";$("tl").append(d)});
   render();
 }
 function drawIv(){
@@ -190,7 +211,7 @@ function drawIv(){
   if(!w)return;
   cv.width=w*dpr;cv.height=h*dpr;
   const g=cv.getContext("2d");g.scale(dpr,dpr);
-  $("ivt").textContent=b?`Block ${S.i+1} of ${S.blocks.length} \u00b7 ${b[2]}% FTP`:"";
+  $("ivt").textContent="";
   if(!b)return;
   const cs=getComputedStyle(document.documentElement),col=n=>cs.getPropertyValue(n).trim();
   const tw=watts(b),pts=S.rec.filter(p=>p.b==S.i),max=Math.max(tw*1.4,50,...pts.map(p=>p.w));
@@ -222,6 +243,7 @@ function render(){
   const b=S.blocks[S.i];
   $("avg").textContent=S.rec.length?Math.round(S.sum/S.rec.length):"\u2013";
   $("tleft").textContent=fmt(S.blocks.reduce((a,b,n)=>a+(n>S.i?b[1]:n==S.i?b[1]-S.el:0),0));
+  $("ride").textContent=fmt(S.ride);
   [...$("tl").children].forEach((d,n)=>{d.className=n<S.i?"done":n==S.i?"cur":"";d.firstChild.style.width=n==S.i?(S.el/b[1]*100)+"%":"0";d.lastChild.style.left=n==S.i?(S.el/b[1]*100)+"%":"0"});
   if(!b){drawIv();$("ivt").textContent="Workout complete \ud83c\udf89";$("tw").textContent="\u2013";$("left").textContent="\u2013";upd();return}
   
@@ -235,18 +257,29 @@ function setTarget(){const b=S.blocks[S.i];if(b&&$("erg").checked){const w=watts
 function tick(){
   if(!S.run)return;const b=S.blocks[S.i];if(!b)return;
   if(S.sim){S.pw=Math.max(0,Math.round(watts(b)+(Math.random()-.5)*20));S.cad=88+Math.random()*6}
-  if(S.pw!=null){S.sum+=S.pw;S.rec.push({t:Date.now(),w:S.pw,c:S.cad,b:S.i,e:S.el});$("save").disabled=false}
-  S.el++;
-  if(S.el>=b[1]){S.i++;S.el=0;if(!S.blocks[S.i]){S.run=false;$("go").textContent="Start";$("save").className="p";$("total").textContent="Workout complete \u2013 save your ride"}else setTarget()}
+  if(S.pw!=null){S.sum+=S.pw;S.rec.push({t:Date.now(),w:S.pw,c:S.cad,b:S.i,e:S.el})}
+  S.ride++;S.el++;
+  if(S.el>=b[1]){S.i++;S.el=0;if(!S.blocks[S.i]){S.run=false;setTop(false);$("go").textContent="Start";$("total").textContent="Workout complete \u2013 press Stop to save your ride"}else setTarget()}
   render();
 }
 $("go").onclick=()=>{
   if(!S.blocks[S.i]){load()}
-  S.run=!S.run;$("go").textContent=S.run?"Pause":"Resume";
-  if(S.run){setTarget();send([0x07])}
+  S.run=!S.run;if(S.run)setTop(true);$("go").textContent=S.run?"Pause":"Resume";
+  if(S.run){send([0x07]);setTarget()}else send([0x08,0x02])
 };
 $("skip").onclick=()=>{if(S.blocks[S.i]){S.i++;S.el=0;setTarget();render()}};
-$("reset").onclick=load;$("wo").onchange=load;$("ftp").onchange=()=>{load()};
+$("prev").onclick=()=>{if(!S.blocks.length)return;S.i=Math.max(0,Math.min(S.i,S.blocks.length)-1);S.el=0;setTarget();render()};
+$("reset").onclick=async()=>{
+  const was=S.run;let saved=null;
+  if(S.rec.length){
+    S.run=false;
+    const a=await ask();
+    if(a==="cancel"){S.run=was;return}
+    if(a==="save"){if(!(await saveRide())){S.run=was;return}saved=$("total").textContent}
+  }
+  send([0x08,0x01]);load();
+  if(saved)$("total").textContent=saved;
+};$("wo").onchange=load;$("ftp").onchange=()=>{load()};
 $("erg").onchange=setTarget;
 $("demo").onclick=()=>{S.sim=!S.sim;$("demo").textContent=S.sim?"Stop demo":"Demo mode";$("status").textContent=S.sim?"Demo mode (simulated power)":"Not connected";if(!S.sim){S.pw=S.cad=null}render()};
 
@@ -308,15 +341,24 @@ function zip(name,str){
   e.setUint32(0,0x06054b50,true);e.setUint16(8,1,true);e.setUint16(10,1,true);e.setUint32(12,46+nb.length,true);e.setUint32(16,30+nb.length+d.length,true);
   return new Blob([lh,nb,d,ch,nb,e],{type:"application/zip"});
 }
-$("save").onclick=async()=>{
-  if(!S.rec.length)return;
+async function saveRide(){
+  if(!S.rec.length)return false;
   const base="ride-"+iso(S.rec[0].t).slice(0,16).replace(/[:T]/g,"-"),tcx=buildTcx();
+  if(window.showSaveFilePicker){
+    try{
+      const h=await showSaveFilePicker({suggestedName:base+".tcx",types:[{description:"TCX ride file",accept:{"application/xml":[".tcx"]}}]});
+      const w=await h.createWritable();await w.write(tcx);await w.close();
+      $("total").textContent="Saved "+h.name;return true;
+    }catch(e){if(e&&e.name==="AbortError")return false}
+  }
   try{
     const dl=window.claude&&await claude.use("downloads");
     if(dl){await dl.save({filename:base+".zip",data:zip(base+".tcx",tcx)});$("total").textContent="Saved \u2013 unzip it and upload the .tcx to Strava"}
-    else{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([tcx],{type:"application/xml"}));a.download=base+".tcx";a.click()}
-  }catch(e){if(!e||e.code!=="declined")$("total").textContent="Could not save: "+((e&&e.message)||e)}
-};
+    else{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([tcx],{type:"application/xml"}));a.download=base+".tcx";a.click();$("total").textContent="Saved to your downloads"}
+    return true;
+  }catch(e){if(!e||e.code!=="declined")$("total").textContent="Could not save: "+((e&&e.message)||e);return false}
+}
+function ask(){return new Promise(r=>{const d=$("dlg");d.style.display="flex";const done=v=>{d.style.display="none";r(v)};$("dyes").onclick=()=>done("save");$("dno").onclick=()=>done("discard");$("dcancel").onclick=()=>done("cancel")})}
 $("tgl").onclick=()=>{const h=$("ttbox").style.display=="none";$("ttbox").style.display=h?"":"none";$("tgl").textContent=h?"Hide time left":"Show time left"};
 S.timer=setInterval(tick,1000);
 load();
